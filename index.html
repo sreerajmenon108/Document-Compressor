@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShrinkPDF — Private Client-Side PDF Compressor (&lt; 900 KB)</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- PDF.js (v3.11.174 UMD build for reliable global access) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- jsPDF (v2.5.1 UMD build) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800 antialiased selection:bg-indigo-100 selection:text-indigo-800 flex flex-col">
+
+  <!-- Top Navigation / Header -->
+  <header class="w-full bg-white border-b border-slate-200/80 sticky top-0 z-20">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm shadow-indigo-200">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
+        </div>
+        <div>
+          <span class="font-bold text-lg tracking-tight text-slate-900">Shrink<span class="text-indigo-600">PDF</span></span>
+          <span class="hidden sm:inline-block ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">Target &lt; 900 KB</span>
+        </div>
+      </div>
+
+      <!-- Privacy Badge -->
+      <div class="flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-3 py-1.5 rounded-full">
+        <svg class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+        <span>100% Local Browser Processing</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+
+    <!-- Hero Title -->
+    <div class="text-center mb-8">
+      <h1 class="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+        Compress PDF Under <span class="text-indigo-600">900 KB</span>
+      </h1>
+      <p class="mt-2.5 text-sm sm:text-base text-slate-600 max-w-xl mx-auto">
+        Automatically optimize PDF resolution and quality right inside your browser to hit your exact file size limit—zero server uploads, complete privacy.
+      </p>
+    </div>
+
+    <!-- Error / Notification Banner (Hidden by default) -->
+    <div id="errorBanner" class="hidden mb-6 rounded-2xl bg-rose-50 border border-rose-200 p-4 flex items-start gap-3 text-rose-800 shadow-sm">
+      <svg class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+      <div class="flex-1 text-sm">
+        <p class="font-semibold" id="errorTitle">Unable to process PDF</p>
+        <p class="mt-0.5 text-rose-700" id="errorMessage">Please ensure the file is a valid, unencrypted PDF document.</p>
+      </div>
+      <button type="button" id="dismissErrorBtn" class="text-rose-500 hover:text-rose-700 p-1 rounded-lg">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- STEP 1: Upload Dropzone -->
+    <section id="uploadSection" class="bg-white rounded-3xl border-2 border-dashed border-slate-300 hover:border-indigo-400 transition-all duration-200 p-8 sm:p-12 text-center shadow-sm cursor-pointer group">
+      <input type="file" id="pdfInput" accept="application/pdf,.pdf" class="hidden" />
+      <div class="w-16 h-16 mx-auto rounded-2xl bg-indigo-50 text-indigo-600 group-hover:scale-105 group-hover:bg-indigo-100 transition-transform flex items-center justify-center mb-4">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        </svg>
+      </div>
+      <h2 class="text-lg sm:text-xl font-bold text-slate-900">Drop your PDF here, or <span class="text-indigo-600 underline decoration-indigo-300 underline-offset-4">browse</span></h2>
+      <p class="mt-2 text-xs sm:text-sm text-slate-500">Supports multi-page documents, scans, and mixed page orientations. Processed 100% locally.</p>
+      <div class="mt-6">
+        <button type="button" id="selectFileBtn" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-sm shadow-sm shadow-indigo-200 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Select PDF File
+        </button>
+      </div>
+    </section>
+
+    <!-- STEP 2: Workspace (File Info + Compression Settings + Progress + Results) -->
+    <section id="workspaceSection" class="hidden space-y-6">
+
+      <!-- Selected File Card -->
+      <div class="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="flex items-center gap-3.5 min-w-0">
+          <div class="w-12 h-12 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0 font-bold text-xs tracking-wider">
+            PDF
+          </div>
+          <div class="min-w-0">
+            <h3 id="fileNameDisplay" class="font-semibold text-slate-900 truncate text-sm sm:text-base" title="document.pdf">document.pdf</h3>
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-slate-500">
+              <span class="inline-flex items-center gap-1 font-medium text-slate-700">
+                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+                <span id="originalSizeDisplay">0 KB</span>
+              </span>
+              <span>•</span>
+              <span id="pageCountDisplay">0 pages</span>
+            </div>
+          </div>
+        </div>
+        <button type="button" id="changeFileBtn" class="self-start sm:self-center text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 px-3.5 py-2 rounded-xl transition-colors shrink-0">
+          Change File
+        </button>
+      </div>
+
+      <!-- Already Under Target Callout (shown when uploaded PDF is already <= target size) -->
+      <div id="alreadyUnderNotice" class="hidden rounded-2xl bg-emerald-50 border border-emerald-200 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <h4 class="text-sm font-bold text-emerald-900">Your PDF is already under <span class="targetLabelText">900 KB</span>!</h4>
+            <p class="text-xs text-emerald-700 mt-0.5">You can download the original file right away, or run compression below to shrink it even further.</p>
+          </div>
+        </div>
+        <button type="button" id="downloadOriginalBtn" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors shrink-0">
+          Download As-Is
+        </button>
+      </div>
+
+      <!-- Compression Controls Card -->
+      <div id="controlsCard" class="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-sm space-y-6">
+
+        <!-- Mode Selector Tabs -->
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2.5">Compression Mode</label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-1.5 bg-slate-100 rounded-xl">
+            <button type="button" id="modeAutoBtn" class="flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-semibold bg-white text-indigo-700 shadow-sm transition-all">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span>Smart Auto-Fit (&lt; <span class="targetLabelText">900 KB</span>)</span>
+            </button>
+            <button type="button" id="modeManualBtn" class="flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 transition-all">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+              <span>Manual Quality &amp; DPI</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- SMART AUTO-FIT CONTROLS -->
+        <div id="autoModePanel" class="space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <label for="targetSizeInput" class="block text-sm font-semibold text-slate-900">Maximum Output Size (KB)</label>
+              <p class="text-xs text-slate-500">Automatically tunes DPI and JPEG quality to maximize clarity under your limit.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="relative w-28">
+                <input type="number" id="targetSizeInput" min="50" max="5000" step="10" value="900"
+                  class="w-full pl-3 pr-9 py-2 text-sm font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">KB</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Slider + Quick Presets -->
+          <div class="space-y-2.5">
+            <input type="range" id="targetSizeSlider" min="100" max="2000" step="25" value="900"
+              class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" />
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+              <span class="text-xs text-slate-400">Quick presets:</span>
+              <div class="flex flex-wrap gap-1.5">
+                <button type="button" data-preset="300" class="preset-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">300 KB</button>
+                <button type="button" data-preset="500" class="preset-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">500 KB</button>
+                <button type="button" data-preset="900" class="preset-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300 transition-colors">900 KB (Default)</button>
+                <button type="button" data-preset="1024" class="preset-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">1 MB</button>
+                <button type="button" data-preset="2000" class="preset-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">2 MB</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MANUAL MODE CONTROLS -->
+        <div id="manualModePanel" class="hidden space-y-5">
+          <div>
+            <div class="flex justify-between text-sm mb-1.5">
+              <label for="manualScaleSlider" class="font-semibold text-slate-800">Render Resolution (DPI Scale)</label>
+              <span id="manualScaleValue" class="font-bold text-indigo-600">1.2x (~86 DPI)</span>
+            </div>
+            <input type="range" id="manualScaleSlider" min="0.4" max="2.5" step="0.1" value="1.2"
+              class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" />
+            <div class="flex justify-between text-[11px] text-slate-400 mt-1">
+              <span>0.4x (Ultra Compact)</span>
+              <span>1.2x (Balanced)</span>
+              <span>2.5x (Crisp Text)</span>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex justify-between text-sm mb-1.5">
+              <label for="manualQualitySlider" class="font-semibold text-slate-800">JPEG Image Quality</label>
+              <span id="manualQualityValue" class="font-bold text-indigo-600">65%</span>
+            </div>
+            <input type="range" id="manualQualitySlider" min="15" max="95" step="5" value="65"
+              class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" />
+            <div class="flex justify-between text-[11px] text-slate-400 mt-1">
+              <span>15% (Smallest)</span>
+              <span>65% (Recommended)</span>
+              <span>95% (High Detail)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Button -->
+        <div class="pt-1">
+          <button type="button" id="compressBtn"
+            class="w-full py-3.5 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-sm sm:text-base shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+            <span id="compressBtnText">Compress PDF Under 900 KB</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Progress Panel (Visible during processing) -->
+      <div id="progressCard" class="hidden bg-white rounded-2xl border border-indigo-100 p-6 shadow-sm space-y-4">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5">
+            <svg class="w-5 h-5 text-indigo-600 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span id="progressTitle" class="font-bold text-sm sm:text-base text-slate-900">Optimizing PDF...</span>
+          </div>
+          <span id="progressPercent" class="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">0%</span>
+        </div>
+
+        <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+          <div id="progressBar" class="h-full bg-indigo-600 rounded-full transition-all duration-200" style="width: 0%"></div>
+        </div>
+
+        <p id="progressDetail" class="text-xs text-slate-500">Initializing PDF rendering engine...</p>
+      </div>
+
+      <!-- Results Comparison Card (Visible after compression finishes) -->
+      <div id="resultCard" class="hidden bg-white rounded-2xl border border-slate-200/90 p-6 shadow-md space-y-6">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
+          <h3 class="text-base sm:text-lg font-bold text-slate-900">Compression Complete</h3>
+          <span id="targetStatusBadge" class="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            <span id="targetStatusText">Under 900 KB target!</span>
+          </span>
+        </div>
+
+        <!-- Warning for extreme multi-hundred page files if minimum floor still exceeds target -->
+        <div id="sizeLimitWarning" class="hidden rounded-xl bg-amber-50 border border-amber-200 p-3.5 text-xs text-amber-800">
+          <strong>Note:</strong> Because this document has a large number of pages, even at minimum readable quality the output is <span id="warningActualSize" class="font-bold"></span>. This is the smallest readable version generated.
+        </div>
+
+        <!-- Before vs After Metrics Grid -->
+        <div class="grid grid-cols-3 gap-3 sm:gap-4 text-center">
+          <div class="p-3.5 sm:p-4 rounded-xl bg-slate-50 border border-slate-200/70">
+            <span class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">Original</span>
+            <span id="resOriginalSize" class="mt-1 block text-base sm:text-xl font-bold text-slate-700">0 MB</span>
+          </div>
+          <div class="p-3.5 sm:p-4 rounded-xl bg-indigo-50/70 border border-indigo-200/80">
+            <span class="block text-[11px] font-semibold uppercase tracking-wider text-indigo-500">Compressed</span>
+            <span id="resCompressedSize" class="mt-1 block text-base sm:text-xl font-extrabold text-indigo-700">0 KB</span>
+          </div>
+          <div class="p-3.5 sm:p-4 rounded-xl bg-emerald-50/70 border border-emerald-200/80">
+            <span class="block text-[11px] font-semibold uppercase tracking-wider text-emerald-600">Saved</span>
+            <span id="resReductionPct" class="mt-1 block text-base sm:text-xl font-extrabold text-emerald-700">0%</span>
+          </div>
+        </div>
+
+        <!-- Technical Summary Line -->
+        <p id="resTechSummary" class="text-xs text-center text-slate-500"></p>
+
+        <!-- Download & Reset Actions -->
+        <div class="flex flex-col sm:flex-row gap-3 pt-1">
+          <button type="button" id="downloadBtn"
+            class="flex-1 py-3.5 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-sm sm:text-base shadow-md shadow-emerald-200 transition-all flex items-center justify-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span>Download Compressed PDF</span>
+          </button>
+          <button type="button" id="resetBtn"
+            class="py-3.5 px-5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Compress Another</span>
+          </button>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="w-full border-t border-slate-200/80 bg-white py-5 mt-auto">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+      <p>Files never leave your device. Powered by: TechTools & SreerajMenon.</p>
+      <p>Default target limit: <strong class="text-slate-700">900 KB</strong> (921,600 bytes)</p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // Configure PDF.js worker from matching CDN version
+      const PDFJS_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+      }
+
+      // Application State
+      const state = {
+        file: null,
+        arrayBuffer: null,
+        pdfDoc: null,
+        numPages: 0,
+        mode: 'auto', // 'auto' | 'manual'
+        targetKB: 900,
+        manualScale: 1.2,
+        manualQuality: 0.65,
+        isProcessing: false,
+        compressedBlob: null,
+        compressedFileName: '',
+      };
+
+      // DOM Elements
+      const els = {
+        errorBanner: document.getElementById('errorBanner'),
+        errorTitle: document.getElementById('errorTitle'),
+        errorMessage: document.getElementById('errorMessage'),
+        dismissErrorBtn: document.getElementById('dismissErrorBtn'),
+
+        uploadSection: document.getElementById('uploadSection'),
+        pdfInput: document.getElementById('pdfInput'),
+        selectFileBtn: document.getElementById('selectFileBtn'),
+
+        workspaceSection: document.getElementById('workspaceSection'),
+        fileNameDisplay: document.getElementById('fileNameDisplay'),
+        originalSizeDisplay: document.getElementById('originalSizeDisplay'),
+        pageCountDisplay: document.getElementById('pageCountDisplay'),
+        changeFileBtn: document.getElementById('changeFileBtn'),
+
+        alreadyUnderNotice: document.getElementById('alreadyUnderNotice'),
+        downloadOriginalBtn: document.getElementById('downloadOriginalBtn'),
+
+        controlsCard: document.getElementById('controlsCard'),
+        modeAutoBtn: document.getElementById('modeAutoBtn'),
+        modeManualBtn: document.getElementById('modeManualBtn'),
+        autoModePanel: document.getElementById('autoModePanel'),
+        manualModePanel: document.getElementById('manualModePanel'),
+
+        targetSizeInput: document.getElementById('targetSizeInput'),
+        targetSizeSlider: document.getElementById('targetSizeSlider'),
+        presetBtns: document.querySelectorAll('.preset-btn'),
+
+        manualScaleSlider: document.getElementById('manualScaleSlider'),
+        manualScaleValue: document.getElementById('manualScaleValue'),
+        manualQualitySlider: document.getElementById('manualQualitySlider'),
+        manualQualityValue: document.getElementById('manualQualityValue'),
+
+        compressBtn: document.getElementById('compressBtn'),
+        compressBtnText: document.getElementById('compressBtnText'),
+
+        progressCard: document.getElementById('progressCard'),
+        progressTitle: document.getElementById('progressTitle'),
+        progressPercent: document.getElementById('progressPercent'),
+        progressBar: document.getElementById('progressBar'),
+        progressDetail: document.getElementById('progressDetail'),
+
+        resultCard: document.getElementById('resultCard'),
+        targetStatusBadge: document.getElementById('targetStatusBadge'),
+        targetStatusText: document.getElementById('targetStatusText'),
+        sizeLimitWarning: document.getElementById('sizeLimitWarning'),
+        warningActualSize: document.getElementById('warningActualSize'),
+        resOriginalSize: document.getElementById('resOriginalSize'),
+        resCompressedSize: document.getElementById('resCompressedSize'),
+        resReductionPct: document.getElementById('resReductionPct'),
+        resTechSummary: document.getElementById('resTechSummary'),
+        downloadBtn: document.getElementById('downloadBtn'),
+        resetBtn: document.getElementById('resetBtn'),
+      };
+
+      // Utility: Format byte sizes nicely
+      function formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const kb = bytes / 1024;
+        if (kb < 1024) {
+          return `${kb.toFixed(kb < 10 ? 1 : 0)} KB`;
+        }
+        const mb = kb / 1024;
+        return `${mb.toFixed(2)} MB`;
+      }
+
+      // Utility: Show/Hide error banner
+      function showError(title, message) {
+        els.errorTitle.textContent = title;
+        els.errorMessage.textContent = message;
+        els.errorBanner.classList.remove('hidden');
+      }
+
+      function hideError() {
+        els.errorBanner.classList.add('hidden');
+      }
+
+      // Utility: Yield to browser main thread so UI repaints smoothly
+      function nextFrame() {
+        return new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+      }
+
+      // Update Target Size UI labels across the page
+      function syncTargetKB(newKB) {
+        const clamped = Math.max(50, Math.min(5000, Math.round(Number(newKB) || 900)));
+        state.targetKB = clamped;
+        els.targetSizeInput.value = clamped;
+        els.targetSizeSlider.value = Math.min(2000, Math.max(100, clamped));
+
+        document.querySelectorAll('.targetLabelText').forEach((el) => {
+          el.textContent = `${clamped} KB`;
+        });
+
+        if (state.mode === 'auto') {
+          els.compressBtnText.textContent = `Compress PDF Under ${clamped} KB`;
+        } else {
+          els.compressBtnText.textContent = 'Compress PDF with Custom Settings';
+        }
+
+        // Highlight matching preset button
+        els.presetBtns.forEach((btn) => {
+          const val = Number(btn.dataset.preset);
+          if (val === clamped) {
+            btn.className = 'preset-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300 transition-colors';
+          } else {
+            btn.className = 'preset-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors';
+          }
+        });
+
+        // Update "Already under target" banner visibility if a file is loaded
+        if (state.file) {
+          const targetBytes = state.targetKB * 1024;
+          if (state.file.size <= targetBytes) {
+            els.alreadyUnderNotice.classList.remove('hidden');
+          } else {
+            els.alreadyUnderNotice.classList.add('hidden');
+          }
+        }
+      }
+
+      // Switch between Auto and Manual mode
+      function setMode(mode) {
+        state.mode = mode;
+        if (mode === 'auto') {
+          els.modeAutoBtn.className = 'flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-semibold bg-white text-indigo-700 shadow-sm transition-all';
+          els.modeManualBtn.className = 'flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 transition-all';
+          els.autoModePanel.classList.remove('hidden');
+          els.manualModePanel.classList.add('hidden');
+          els.compressBtnText.textContent = `Compress PDF Under ${state.targetKB} KB`;
+        } else {
+          els.modeManualBtn.className = 'flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-semibold bg-white text-indigo-700 shadow-sm transition-all';
+          els.modeAutoBtn.className = 'flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 transition-all';
+          els.manualModePanel.classList.remove('hidden');
+          els.autoModePanel.classList.add('hidden');
+          els.compressBtnText.textContent = 'Compress PDF with Custom Settings';
+        }
+      }
+
+      // Handle Uploaded File
+      async function handleFileSelect(file) {
+        hideError();
+        if (!file) return;
+
+        if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+          showError('Invalid File Format', 'Please upload a valid PDF document (.pdf).');
+          return;
+        }
+
+        try {
+          const buffer = await file.arrayBuffer();
+          const loadingTask = window.pdfjsLib.getDocument({ data: buffer.slice(0) });
+          const pdfDoc = await loadingTask.promise;
+
+          state.file = file;
+          state.arrayBuffer = buffer;
+          state.pdfDoc = pdfDoc;
+          state.numPages = pdfDoc.numPages;
+          state.compressedBlob = null;
+
+          const baseName = file.name.replace(/\.pdf$/i, '');
+          state.compressedFileName = `${baseName}_compressed.pdf`;
+
+          // Populate file metadata UI
+          els.fileNameDisplay.textContent = file.name;
+          els.fileNameDisplay.title = file.name;
+          els.originalSizeDisplay.textContent = formatBytes(file.size);
+          els.pageCountDisplay.textContent = `${pdfDoc.numPages} ${pdfDoc.numPages === 1 ? 'page' : 'pages'}`;
+
+          // Reset result/progress views
+          els.resultCard.classList.add('hidden');
+          els.progressCard.classList.add('hidden');
+          els.controlsCard.classList.remove('hidden');
+
+          // Check if already under target size
+          syncTargetKB(state.targetKB);
+
+          // Switch view from dropzone to workspace
+          els.uploadSection.classList.add('hidden');
+          els.workspaceSection.classList.remove('hidden');
+        } catch (err) {
+          console.error('PDF Load Error:', err);
+          if (err && err.name === 'PasswordException') {
+            showError('Password-Protected PDF', 'This PDF is encrypted. Please unlock or remove the password before compressing.');
+          } else {
+            showError('Corrupted or Unreadable PDF', 'We could not read this PDF file. It may be damaged or use an unsupported structure.');
+          }
+        }
+      }
+
+      // Render all pages at (scale, jpegQuality) and return a jsPDF Blob
+      async function buildCompressedPdfBlob(pdfDoc, scale, quality, onPageProgress) {
+        const { jsPDF } = window.jspdf;
+        const numPages = pdfDoc.numPages;
+        let doc = null;
+
+        // Reusable offscreen canvas
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+          if (onPageProgress) {
+            onPageProgress(pageNum, numPages);
+          }
+
+          const page = await pdfDoc.getPage(pageNum);
+          // Original viewport at scale 1.0 gives dimensions in PDF points (72 DPI)
+          const baseViewport = page.getViewport({ scale: 1.0 });
+          const renderViewport = page.getViewport({ scale });
+
+          // Guard against ultra-large canvases on huge architectural sheets
+          const maxDim = 4096;
+          let effectiveScale = scale;
+          if (renderViewport.width > maxDim || renderViewport.height > maxDim) {
+            const ratio = Math.min(maxDim / renderViewport.width, maxDim / renderViewport.height);
+            effectiveScale = scale * ratio;
+          }
+          const finalViewport = effectiveScale === scale ? renderViewport : page.getViewport({ scale: effectiveScale });
+
+          canvas.width = Math.max(1, Math.floor(finalViewport.width));
+          canvas.height = Math.max(1, Math.floor(finalViewport.height));
+
+          // Fill white background (PDF transparent backgrounds turn black in JPEG otherwise)
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          await page.render({
+            canvasContext: ctx,
+            viewport: finalViewport,
+          }).promise;
+
+          const imgData = canvas.toDataURL('image/jpeg', quality);
+
+          // Determine page orientation and physical size in points ('pt')
+          const widthPt = baseViewport.width;
+          const heightPt = baseViewport.height;
+          const orientation = widthPt > heightPt ? 'landscape' : 'portrait';
+
+          if (pageNum === 1) {
+            doc = new jsPDF({
+              orientation,
+              unit: 'pt',
+              format: [widthPt, heightPt],
+              compress: true,
+            });
+          } else {
+            doc.addPage([widthPt, heightPt], orientation);
+          }
+
+          doc.addImage(imgData, 'JPEG', 0, 0, widthPt, heightPt, undefined, 'FAST');
+
+          // Free page resources and yield briefly on multi-page docs
+          page.cleanup();
+          if (pageNum % 3 === 0) {
+            await nextFrame();
+          }
+        }
+
+        // Release canvas memory
+        canvas.width = 0;
+        canvas.height = 0;
+
+        return doc.output('blob');
+      }
+
+      // Main Compression Orchestrator (Smart Auto-Fit + Manual)
+      async function runCompression() {
+        if (state.isProcessing || !state.pdfDoc) return;
+        state.isProcessing = true;
+        hideError();
+
+        els.compressBtn.disabled = true;
+        els.compressBtn.classList.add('opacity-60', 'cursor-not-allowed');
+        els.resultCard.classList.add('hidden');
+        els.progressCard.classList.remove('hidden');
+
+        const updateProgress = (pct, title, detail) => {
+          els.progressBar.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+          els.progressPercent.textContent = `${Math.round(pct)}%`;
+          if (title) els.progressTitle.textContent = title;
+          if (detail) els.progressDetail.textContent = detail;
+        };
+
+        try {
+          let finalBlob = null;
+          let usedScale = state.manualScale;
+          let usedQuality = state.manualQuality;
+          let passCount = 1;
+
+          if (state.mode === 'manual') {
+            // Single pass with user's exact DPI scale & JPEG quality
+            updateProgress(5, 'Compressing PDF (Manual Settings)...', `Rendering ${state.numPages} pages at ${state.manualScale}x scale and ${Math.round(state.manualQuality * 100)}% quality...`);
+            await nextFrame();
+
+            finalBlob = await buildCompressedPdfBlob(
+              state.pdfDoc,
+              state.manualScale,
+              state.manualQuality,
+              (page, total) => {
+                const pct = 10 + (page / total) * 85;
+                updateProgress(pct, 'Rendering Pages...', `Processing page ${page} of ${total}...`);
+              }
+            );
+          } else {
+            // SMART AUTO-FIT MODE (< targetKB)
+            // Use 97.5% of target bytes as safety ceiling so output is strictly under targetKB
+            const strictMaxBytes = state.targetKB * 1024;
+            const safeTargetBytes = Math.floor(strictMaxBytes * 0.975);
+            const bytesPerPageBudget = safeTargetBytes / Math.max(1, state.numPages);
+
+            // Heuristic initial parameters based on per-page byte budget
+            let scale, quality;
+            if (bytesPerPageBudget >= 180 * 1024) {
+              scale = 1.65;
+              quality = 0.80;
+            } else if (bytesPerPageBudget >= 90 * 1024) {
+              scale = 1.35;
+              quality = 0.72;
+            } else if (bytesPerPageBudget >= 45 * 1024) {
+              scale = 1.10;
+              quality = 0.62;
+            } else if (bytesPerPageBudget >= 22 * 1024) {
+              scale = 0.88;
+              quality = 0.50;
+            } else if (bytesPerPageBudget >= 12 * 1024) {
+              scale = 0.72;
+              quality = 0.40;
+            } else {
+              scale = 0.58;
+              quality = 0.30;
+            }
+
+            // Track best valid candidate (under strictMaxBytes) and smallest overall candidate
+            let bestValidCandidate = null;
+            let smallestOverallCandidate = null;
+
+            const maxPasses = 5;
+            const minScale = 0.42;
+            const minQuality = 0.22;
+
+            for (let pass = 1; pass <= maxPasses; pass++) {
+              passCount = pass;
+              const basePct = ((pass - 1) / maxPasses) * 85;
+              updateProgress(
+                basePct + 5,
+                `Pass ${pass}: Optimizing Quality & Size...`,
+                `Testing ${Math.round(scale * 72)} DPI (${scale.toFixed(2)}x) at ${Math.round(quality * 100)}% quality...`
+              );
+              await nextFrame();
+
+              const blob = await buildCompressedPdfBlob(
+                state.pdfDoc,
+                scale,
+                quality,
+                (page, total) => {
+                  const passSpan = 85 / maxPasses;
+                  const pct = basePct + (page / total) * passSpan;
+                  updateProgress(
+                    pct,
+                    `Pass ${pass} of ${maxPasses} — Page ${page}/${total}`,
+                    `Testing ${Math.round(scale * 72)} DPI & ${Math.round(quality * 100)}% JPEG quality...`
+                  );
+                }
+              );
+
+              if (!smallestOverallCandidate || blob.size < smallestOverallCandidate.blob.size) {
+                smallestOverallCandidate = { blob, scale, quality };
+              }
+
+              if (blob.size <= strictMaxBytes) {
+                if (!bestValidCandidate || blob.size > bestValidCandidate.blob.size) {
+                  bestValidCandidate = { blob, scale, quality };
+                }
+
+                // If we are already within 72%–100% of the target budget, quality is optimal!
+                if (blob.size >= safeTargetBytes * 0.72 || (scale >= 1.9 && quality >= 0.85)) {
+                  break;
+                }
+
+                // Otherwise we have plenty of headroom—step up resolution/quality for sharper text!
+                const headroomRatio = Math.sqrt(safeTargetBytes / Math.max(1, blob.size));
+                const boost = Math.min(1.35, Math.max(1.12, headroomRatio * 0.9));
+                scale = Math.min(2.0, Number((scale * boost).toFixed(2)));
+                quality = Math.min(0.88, Number((quality + 0.08).toFixed(2)));
+              } else {
+                // File is still larger than target limit -> calculate reduction ratio
+                const overshootRatio = blob.size / safeTargetBytes;
+
+                // Stop if we've already hit the minimum readable floor
+                if (scale <= minScale + 0.01 && quality <= minQuality + 0.01) {
+                  break;
+                }
+
+                // Scale down proportionally (area scales quadratically with DPI scale)
+                const scaleFactor = Math.max(0.55, Math.min(0.88, Math.pow(1 / overshootRatio, 0.42)));
+                scale = Math.max(minScale, Number((scale * scaleFactor).toFixed(2)));
+
+                const qualityDrop = overshootRatio > 2.0 ? 0.16 : overshootRatio > 1.35 ? 0.11 : 0.07;
+                quality = Math.max(minQuality, Number((quality - qualityDrop).toFixed(2)));
+              }
+            }
+
+            const chosen = bestValidCandidate || smallestOverallCandidate;
+            finalBlob = chosen.blob;
+            usedScale = chosen.scale;
+            usedQuality = chosen.quality;
+          }
+
+          updateProgress(100, 'Finalizing PDF...', 'Preparing download...');
+          await nextFrame();
+
+          state.compressedBlob = finalBlob;
+          displayResults(finalBlob, usedScale, usedQuality, passCount);
+        } catch (err) {
+          console.error('Compression Error:', err);
+          showError('Compression Failed', 'An unexpected error occurred while rendering pages. Please try again with a smaller file or lower DPI.');
+        } finally {
+          state.isProcessing = false;
+          els.compressBtn.disabled = false;
+          els.compressBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+          els.progressCard.classList.add('hidden');
+        }
+      }
+
+      // Render Before vs After Results Card
+      function displayResults(blob, usedScale, usedQuality, passCount) {
+        const origBytes = state.file.size;
+        const compBytes = blob.size;
+        const targetBytes = state.targetKB * 1024;
+        const isUnderTarget = compBytes <= targetBytes;
+
+        const savedBytes = origBytes - compBytes;
+        const reductionPct = origBytes > 0 ? Math.round((savedBytes / origBytes) * 100) : 0;
+
+        els.resOriginalSize.textContent = formatBytes(origBytes);
+        els.resCompressedSize.textContent = formatBytes(compBytes);
+
+        if (reductionPct >= 0) {
+          els.resReductionPct.textContent = `-${reductionPct}%`;
+          els.resReductionPct.className = 'mt-1 block text-base sm:text-xl font-extrabold text-emerald-700';
+        } else {
+          els.resReductionPct.textContent = `+${Math.abs(reductionPct)}%`;
+          els.resReductionPct.className = 'mt-1 block text-base sm:text-xl font-extrabold text-amber-700';
+        }
+
+        if (isUnderTarget) {
+          els.targetStatusBadge.className = 'inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200';
+          els.targetStatusText.textContent = `Under ${state.targetKB} KB target!`;
+          els.sizeLimitWarning.classList.add('hidden');
+        } else {
+          els.targetStatusBadge.className = 'inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200';
+          els.targetStatusText.textContent = `Exceeds ${state.targetKB} KB limit`;
+          els.warningActualSize.textContent = formatBytes(compBytes);
+          els.sizeLimitWarning.classList.remove('hidden');
+        }
+
+        const approxDpi = Math.round(usedScale * 72);
+        els.resTechSummary.textContent = `Rendered at ~${approxDpi} DPI (${usedScale.toFixed(2)}x scale) • ${Math.round(usedQuality * 100)}% JPEG quality • Completed in ${passCount} ${passCount === 1 ? 'pass' : 'passes'}`;
+
+        els.resultCard.classList.remove('hidden');
+        els.resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+
+      // Trigger browser file download
+      function triggerDownload(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      }
+
+      // Reset workspace to upload another PDF
+      function resetWorkspace() {
+        state.file = null;
+        state.arrayBuffer = null;
+        if (state.pdfDoc) {
+          state.pdfDoc.destroy();
+          state.pdfDoc = null;
+        }
+        state.numPages = 0;
+        state.compressedBlob = null;
+        els.pdfInput.value = '';
+        hideError();
+
+        els.workspaceSection.classList.add('hidden');
+        els.resultCard.classList.add('hidden');
+        els.progressCard.classList.add('hidden');
+        els.uploadSection.classList.remove('hidden');
+      }
+
+      // Event Listeners: Upload & Drag-and-Drop
+      els.uploadSection.addEventListener('click', (e) => {
+        if (e.target !== els.pdfInput) {
+          els.pdfInput.click();
+        }
+      });
+
+      els.pdfInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          handleFileSelect(e.target.files[0]);
+        }
+      });
+
+      ['dragenter', 'dragover'].forEach((evtName) => {
+        els.uploadSection.addEventListener(evtName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          els.uploadSection.classList.add('border-indigo-500', 'bg-indigo-50/40');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach((evtName) => {
+        els.uploadSection.addEventListener(evtName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          els.uploadSection.classList.remove('border-indigo-500', 'bg-indigo-50/40');
+        });
+      });
+
+      els.uploadSection.addEventListener('drop', (e) => {
+        const files = e.dataTransfer && e.dataTransfer.files;
+        if (files && files[0]) {
+          handleFileSelect(files[0]);
+        }
+      });
+
+      // Event Listeners: Mode & Target Size Controls
+      els.modeAutoBtn.addEventListener('click', () => setMode('auto'));
+      els.modeManualBtn.addEventListener('click', () => setMode('manual'));
+
+      els.targetSizeSlider.addEventListener('input', (e) => {
+        syncTargetKB(e.target.value);
+      });
+
+      els.targetSizeInput.addEventListener('change', (e) => {
+        syncTargetKB(e.target.value);
+      });
+
+      els.presetBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          syncTargetKB(btn.dataset.preset);
+        });
+      });
+
+      // Event Listeners: Manual Sliders
+      els.manualScaleSlider.addEventListener('input', (e) => {
+        state.manualScale = parseFloat(e.target.value);
+        els.manualScaleValue.textContent = `${state.manualScale.toFixed(1)}x (~${Math.round(state.manualScale * 72)} DPI)`;
+      });
+
+      els.manualQualitySlider.addEventListener('input', (e) => {
+        const pct = parseInt(e.target.value, 10);
+        state.manualQuality = pct / 100;
+        els.manualQualityValue.textContent = `${pct}%`;
+      });
+
+      // Event Listeners: Actions
+      els.compressBtn.addEventListener('click', runCompression);
+
+      els.downloadBtn.addEventListener('click', () => {
+        if (state.compressedBlob) {
+          triggerDownload(state.compressedBlob, state.compressedFileName);
+        }
+      });
+
+      els.downloadOriginalBtn.addEventListener('click', () => {
+        if (state.file) {
+          triggerDownload(state.file, state.file.name);
+        }
+      });
+
+      els.changeFileBtn.addEventListener('click', resetWorkspace);
+      els.resetBtn.addEventListener('click', resetWorkspace);
+      els.dismissErrorBtn.addEventListener('click', hideError);
+
+      // Initialize default UI state
+      syncTargetKB(900);
+    })();
+  </script>
+</body>
+</html>
